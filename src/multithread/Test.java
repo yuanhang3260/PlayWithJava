@@ -44,12 +44,7 @@ public class Test {
 
     for (int i = 0; i < Test.TASKS_NUM; i++) {
       int index = i;
-      pool.execute(new Runnable() {
-        @Override
-        public void run() {
-          test.calcualate(index);
-        }
-      });
+      pool.execute(() -> { test.calcualate(index); });
     }
 
     pool.stop();

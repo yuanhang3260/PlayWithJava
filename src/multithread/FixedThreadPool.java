@@ -49,48 +49,54 @@ public class FixedThreadPool {
 
     synchronized(this.workers) {
       if (this.workers.size() < this.capacity) {
-        Thread worker = new Thread(new ThreadWorker());
+        // // Traditional style: create anonymous Runnable class instance.
+        // Thread worker = new Thread(new Runnable() {
+        //   @Override
+        //   public void run() {
+        //     runWorker();
+        //   }
+        // });
+
+        // Use lambda to create runnable.
+        Thread worker = new Thread(() -> { this.runWorker(); });
         worker.start();
         this.workers.add(worker);
       }
     }
   }
 
-  private class ThreadWorker implements Runnable {
-    @Override
-    public void run() {
-      try {
-        while (true) {
-          Runnable task;
+  private void runWorker() {
+    try {
+      while (true) {
+        Runnable task;
 
-          // Wait for task to come in.
-          synchronized(lock) {
-            while (tasks.isEmpty() && !stop) {
-              lock.wait();
-            }
-
-            // If threadpool is stopped, and there is no pending task in queue,
-            // return and terminate this worker. Note we guarantee that all
-            // queued tasks are executed before this threadpool is shutdown.
-            if (stop && tasks.isEmpty()) {
-              return;
-            }
-
-            task = tasks.poll();
+        // Wait for task to come in.
+        synchronized(this.lock) {
+          while (tasks.isEmpty() && !this.stop) {
+            this.lock.wait();
           }
 
-          // New task received, run it!
-          task.run();
+          // If threadpool is stopped, and there is no pending task in queue,
+          // return and terminate this worker. Note we guarantee that all
+          // queued tasks are executed before this threadpool is shutdown.
+          if (this.stop && this.tasks.isEmpty()) {
+            return;
+          }
+
+          task = this.tasks.poll();
         }
-      } catch (InterruptedException e) {
-        e.printStackTrace();
+
+        // New task received, run it!
+        task.run();
       }
+    } catch (InterruptedException e) {
+      e.printStackTrace();
     }
   }
 
   public void stop() {
     synchronized(this.lock) {
-      System.out.println("Stop!!!!!!!!!!!!!");
+      System.out.println("Stop threadpool");
       this.stop = true;
       this.lock.notifyAll();
     }
