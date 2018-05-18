@@ -4,7 +4,7 @@ import java.time.Duration;
 import java.util.concurrent.Future;
 import java.util.concurrent.TimeUnit;
 
-class interface IFuture<V> extends Future<V> {
+public interface IFuture<V> extends Future<V> {
   // Check if task is "Done" and "Success".
   boolean isSuccess();
 
@@ -12,11 +12,11 @@ class interface IFuture<V> extends Future<V> {
   boolean isCancellable();
 
   // If task is "Done" but "Failed", it will return the cause as a Throwable.
-  Throwable cause();
+  Throwable getCause();
 
-  // Wait infinitely for the task to be done.
+  // Wait infinitely for the task to be done. This method is interruptable.
   IFuture<V> await() throws InterruptedException;
-  // Similar tp await(), but with timeout.
+  // Similar tp await(), but with timeout. This method is interruptable.
   IFuture<V> await(long timeout, TimeUnit unit) throws InterruptedException;
 
   // Add event listener. When task is done, listeners will be notified.

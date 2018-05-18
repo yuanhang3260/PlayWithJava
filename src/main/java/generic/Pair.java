@@ -11,6 +11,7 @@ public class Pair<T> {
     this.v2 = v2;
   }
 
+  @SuppressWarnings("unchecked")
   public void foo(Object obj) {
     this.setV1((T)obj);
   }
