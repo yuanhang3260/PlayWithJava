@@ -7,7 +7,6 @@ import java.util.concurrent.ExecutionException;
 import java.util.concurrent.Future;
 import java.util.concurrent.TimeoutException;
 import java.util.concurrent.TimeUnit;
-import java.util.ArrayList;
 import java.util.List;
 
 import multithread.IFuture;
@@ -19,8 +18,9 @@ public abstract class AbstractFuture<V> implements IFuture<V>, IPromise<V> {
 
   List<IFutureListener<V>> listeners = new CopyOnWriteArrayList<IFutureListener<V>>();
 
-  private static class SuccessSignal {}
-  private static final SuccessSignal SUCCESS_VOID = new SuccessSignal();
+  // SUCCESS_VOID is a placeholder for a success-void result.
+  private static final class SuccessVoid {}
+  private static final SuccessVoid SUCCESS_VOID = new SuccessVoid();
 
   @Override
   public boolean isDone() {
@@ -35,12 +35,12 @@ public abstract class AbstractFuture<V> implements IFuture<V>, IPromise<V> {
     return !(result instanceof FailureResult);
   }
 
-  // FailureResult is a holder of failure cause. The cause can be normal exceptions threw by task,
-  // or a CancellationException after cancel() is called.
-  private static final class FailureResult {  
+  // FailureResult is a wrapper of failure cause. The cause can be any arbitrary exception threw by
+  // the task, or a CancellationException if cancel() is called.
+  private static final class FailureResult {
     private final Throwable cause;
 
-    public FailureResult(Throwable cause) {  
+    public FailureResult(Throwable cause) {
       this.cause = cause;
     }
 
@@ -72,6 +72,7 @@ public abstract class AbstractFuture<V> implements IFuture<V>, IPromise<V> {
     return true;
   }
 
+  @Override
   public boolean cancel() {
     return this.cancel(false);
   }
@@ -172,7 +173,7 @@ public abstract class AbstractFuture<V> implements IFuture<V>, IPromise<V> {
           throw e;
         }
 
-        // The reason for this check is that wait(timeout) is not reliable due to spurious wakeup.
+        // wait(timeout) does not reliably wait for timeout due to spurious wakeup.
         remainingTimeout = timeoutNanos - (System.nanoTime() - startTime);
         if (remainingTimeout <= 0) {
           return this;
@@ -184,12 +185,20 @@ public abstract class AbstractFuture<V> implements IFuture<V>, IPromise<V> {
 
   @Override
   public IFuture<V> addListener(IFutureListener<V> listener) {
-    this.listeners.add(listener);
+    if (isDone()) {
+      try {
+        listener.taskDone(this);
+      } catch (Exception e) {
+        e.printStackTrace();
+      }
+    } else {
+      this.listeners.add(listener);
+    }
     return this;
   }
 
   private void notifyListeners() {
-    for (IFutureListener<V> l : this.listeners) {  
+    for (IFutureListener<V> l : this.listeners) {
       try {
         // Execute listener callback.
         l.taskDone(this);

@@ -11,6 +11,9 @@ public interface IFuture<V> extends Future<V> {
   // If the task is still cancellable.
   boolean isCancellable();
 
+  // Cancel with mayInterruptIfRunning=false.
+  boolean cancel();
+
   // If task is "Done" but "Failed", it will return the cause as a Throwable.
   Throwable getCause();
 

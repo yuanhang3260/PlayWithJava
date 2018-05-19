@@ -1,13 +1,63 @@
 package multithread;
 
+import java.lang.IllegalArgumentException;
 import java.lang.Runnable;
 import java.lang.Thread;
 import java.util.ArrayList;
-import java.util.LinkedList;
+import java.util.concurrent.Callable;
 import java.util.List;
+import java.util.LinkedList;
 import java.util.Queue;
 
+import multithread.AbstractFuture;
+import multithread.IFuture;
+
 public class FixedThreadPool {
+
+  private class FutureTask<V> extends AbstractFuture<V> implements Runnable {
+    private Callable<V> task;
+
+    public FutureTask(Callable<V> callable) {
+      if (callable == null) {
+        throw new NullPointerException();
+      }
+      this.task = callable;
+    }
+
+    public FutureTask(Runnable runnable) {
+      if (runnable == null) {
+        throw new NullPointerException();
+      }
+      this.task = new RunnableToCallableAdapter<V>(runnable);
+    }
+
+    @Override
+    public void run() {
+      try {
+        if (!isDone()) {
+          V result = this.task.call();
+          setSuccess(result);
+        }
+      } catch (Exception e) {
+        setFailure(e);
+      }
+    }
+  }
+
+  private class RunnableToCallableAdapter<V> implements Callable<V> {
+    private Runnable runnable;
+
+    public RunnableToCallableAdapter(Runnable runnable) {
+      this.runnable = runnable;
+    }
+
+    @Override
+    public V call() throws Exception {
+      this.runnable.run();
+      return null;
+    }
+  }
+
   public static int DEFAULT_CAPACITY = 4;
 
   private int capacity = 1;
@@ -23,11 +73,10 @@ public class FixedThreadPool {
 
   public FixedThreadPool(int capacity) {
     if (capacity <= 0) {
-      System.err.println("FixedThreadPool capacity must be >= 1");
-      capacity = 1;
+      throw new IllegalArgumentException("FixedThreadPool capacity must be >= 1");
     }
-    this.capacity = capacity;
 
+    this.capacity = capacity;
     init();
   }
 
@@ -37,11 +86,21 @@ public class FixedThreadPool {
     this.lock = new Object();
   }
 
-  public void execute(Runnable task) {
+  public IFuture<?> execute(Runnable runnable) {
+    FutureTask<Void> ftask = new FutureTask<Void>(runnable);
+    return execute0(ftask) ? ftask : null;
+  }
+
+  public <V> IFuture<V> execute(Callable<V> callable) {
+    FutureTask<V> ftask = new FutureTask<V>(callable);
+    return execute0(ftask) ? ftask : null;
+  }
+
+  private boolean execute0(Runnable task) {
     synchronized(this.lock) {
       if (this.stop) {
         System.err.println("Thread pool is stopped, cannot add task");
-        return;
+        return false;
       }
       this.tasks.offer(task);
       this.lock.notify();
@@ -49,20 +108,13 @@ public class FixedThreadPool {
 
     synchronized(this.workers) {
       if (this.workers.size() < this.capacity) {
-        // // Traditional style: create anonymous Runnable class instance.
-        // Thread worker = new Thread(new Runnable() {
-        //   @Override
-        //   public void run() {
-        //     runWorker();
-        //   }
-        // });
-
         // Use lambda to create runnable.
         Thread worker = new Thread(() -> { this.runWorker(); });
         worker.start();
         this.workers.add(worker);
       }
     }
+    return true;
   }
 
   private void runWorker() {

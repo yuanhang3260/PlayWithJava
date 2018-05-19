@@ -99,4 +99,55 @@ public class AbstractFutureTest {
       assertTrue(exceptionCaught);
     }
   }
+
+  private int sum = 0;
+
+  @Test
+  public void testListner() throws InterruptedException, ExecutionException {
+    AbstractFuture<Integer> future = new TestFuture<Integer>();
+    for (int i = 0; i < 10; i++) {
+      future.addListener(new IFutureListener<Integer>() {
+        @Override
+        public void taskDone(IFuture<Integer> future) throws Exception {
+          Integer result = future.get();
+          sum += result;
+        }
+      });
+    }
+
+    future.setSuccess(new Integer(2));
+    assertEquals(20, sum);
+
+    for (int i = 0; i < 10; i++) {
+      future.addListener(new IFutureListener<Integer>() {
+        @Override
+        public void taskDone(IFuture<Integer> future) throws Exception {
+          Integer result = future.get();
+          sum += result;
+        }
+      });
+    }
+
+    assertEquals(40, sum);
+  }
 }
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
