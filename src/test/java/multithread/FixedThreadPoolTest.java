@@ -31,7 +31,7 @@ public class FixedThreadPoolTest {
 
   @Before
   public void setup() throws Exception {
-    pool = new FixedThreadPool(3);
+    pool = new FixedThreadPool();
   }
 
   @After

@@ -115,7 +115,7 @@ public class AbstractFutureTest {
       });
     }
 
-    future.setSuccess(new Integer(2));
+    future.setSuccess(2);
     assertEquals(20, sum);
 
     for (int i = 0; i < 10; i++) {
@@ -127,27 +127,6 @@ public class AbstractFutureTest {
         }
       });
     }
-
     assertEquals(40, sum);
   }
 }
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-

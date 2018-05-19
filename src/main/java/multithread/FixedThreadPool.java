@@ -16,6 +16,7 @@ public class FixedThreadPool {
 
   private class FutureTask<V> extends AbstractFuture<V> implements Runnable {
     private Callable<V> task;
+    private Thread thread;
 
     public FutureTask(Callable<V> callable) {
       if (callable == null) {
@@ -42,6 +43,28 @@ public class FixedThreadPool {
         setFailure(e);
       }
     }
+
+    // Set the which execute the task.
+    public boolean setThread(Thread thread) {
+      if (this.thread != null) {
+        return false;
+      }
+
+      this.thread = thread;
+      return true;
+    }
+
+    @Override
+    public boolean cancel(boolean mayInterruptIfRunning) {
+      if (!super.cancel(mayInterruptIfRunning)) {
+        return false;
+      }
+
+      if (mayInterruptIfRunning && this.thread != null) {
+        this.thread.interrupt();
+      }
+      return true;
+    }
   }
 
   private class RunnableToCallableAdapter<V> implements Callable<V> {
@@ -63,7 +86,7 @@ public class FixedThreadPool {
   private int capacity = 1;
   private List<Thread> workers;
 
-  private Queue<Runnable> tasks;
+  private Queue<FutureTask<?>> tasks;
   private boolean stop = false;
   private Object lock;
 
@@ -81,7 +104,7 @@ public class FixedThreadPool {
   }
 
   private void init() {
-    this.tasks = new LinkedList<Runnable>();
+    this.tasks = new LinkedList<FutureTask<?>>();
     this.workers = new ArrayList<Thread>();
     this.lock = new Object();
   }
@@ -96,7 +119,7 @@ public class FixedThreadPool {
     return execute0(ftask) ? ftask : null;
   }
 
-  private boolean execute0(Runnable task) {
+  private boolean execute0(FutureTask<?> task) {
     synchronized(this.lock) {
       if (this.stop) {
         System.err.println("Thread pool is stopped, cannot add task");
@@ -120,7 +143,7 @@ public class FixedThreadPool {
   private void runWorker() {
     try {
       while (true) {
-        Runnable task;
+        FutureTask<?> task;
 
         // Wait for task to come in.
         synchronized(this.lock) {
@@ -136,10 +159,15 @@ public class FixedThreadPool {
           }
 
           task = this.tasks.poll();
+          task.setThread(Thread.currentThread());
         }
 
-        // New task received, run it!
-        task.run();
+        try {
+          // New task received, run it!
+          task.run();
+        } catch (Exception e) {
+
+        }
       }
     } catch (InterruptedException e) {
       e.printStackTrace();
@@ -148,7 +176,6 @@ public class FixedThreadPool {
 
   public void stop() {
     synchronized(this.lock) {
-      System.out.println("Stop threadpool");
       this.stop = true;
       this.lock.notifyAll();
     }

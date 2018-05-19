@@ -49,7 +49,7 @@ public abstract class AbstractFuture<V> implements IFuture<V>, IPromise<V> {
     }
   }
 
-  // TODO: implement interrupt.
+  // Sub-classes need to implement interrupt.
   @Override
   public boolean cancel(boolean mayInterruptIfRunning) {
     // IsCancelled is a subset of isDone.
