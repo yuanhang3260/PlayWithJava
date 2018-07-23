@@ -1,21 +1,19 @@
 package generic;
 
-import generic.Pair;
+import java.util.ArrayList;
 
-public class Test extends Pair<String> {
-  private int name;
+import generic.InterfaceA;
+import generic.InterfaceB;
 
-  public Test() {
-    super();
-  }
-
-  @Override
-  public void setV1(String v1) {
-    System.out.println("Override method called with string " + v1.length());
+public class Test {
+  public static <F extends InterfaceA<?>> void bar(F f) {
+    
   }
 
   public static void main(String[] args) {
-    Test test = new Test();
-    test.foo(123);
+    Test.bar(new InterfaceB<Void>() {
+      @Override
+      public void foo() {}
+    });
   }
 }

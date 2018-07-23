@@ -11,16 +11,25 @@ public class ProxyDemo {
     void originalMethod(String s);
   }
 
-  static class Original implements If {
+  interface If2 {
+    void originalMethod2(String s);
+  }
+
+  static class Original implements If, If2 {
     public void originalMethod(String s) {
+      System.out.println("originalMethod: " + s);
       System.out.println(s);
+    }
+
+    public void originalMethod2(String s) {
+      System.out.println("originalMethod2: " + s);
     }
   }
 
-  static class Handler implements InvocationHandler {
+  static class Wrapper implements InvocationHandler {
     private final If original;
 
-    public Handler(If original) {
+    public Wrapper(If original) {
       this.original = original;
     }
 
@@ -39,10 +48,10 @@ public class ProxyDemo {
     System.setProperty("sun.misc.ProxyGenerator.saveGeneratedFiles", "true");
 
     Original original = new Original();
-    Handler handler = new Handler(original);
-    If f = (If)Proxy.newProxyInstance(If.class.getClassLoader(),
-                                      new Class[] {If.class},
-                                      handler);
-    f.originalMethod("Hello");
+    Wrapper wrapper = new Wrapper(original);
+    If2 f = (If2)Proxy.newProxyInstance(If.class.getClassLoader(),
+                                        new Class[] {If.class, If2.class},
+                                        wrapper);
+    f.originalMethod2("Hello");
   }
 }

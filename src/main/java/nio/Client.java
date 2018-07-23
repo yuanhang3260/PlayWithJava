@@ -46,7 +46,7 @@ public class Client {
     }
   }
 
-  private int processSelectedKey(SelectionKey key) 
+  private int processSelectedKey(SelectionKey key)
       throws IOException {
     SocketChannel clientChannel = (SocketChannel)key.channel();
 
