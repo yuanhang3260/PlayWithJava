@@ -5,7 +5,8 @@ import java.lang.reflect.InvocationTargetException;
 import java.lang.reflect.Method;
 
 import proxy.InvocationHandler;
-import proxy.ProxyGenerator;
+import proxy.AsmProxyGenerator;
+import proxy.JooqProxyGenerator;
 
 public class Test {
   public static interface If1 {
@@ -51,11 +52,25 @@ public class Test {
     }
   }
 
-  public static void main(String[] args) throws Exception {
-    Class<?> proxyClass = ProxyGenerator.generateProxyClass(new Class<?>[] {If1.class, If2.class});
+  public static void testJooqProxyGenerator() throws Exception {
+    ProxyGenerator pg = new JooqProxyGenerator(new String[] {
+      "/home/hy/Desktop/test/Java/PlayWithJava/target/classes"
+    });
+
+    Class<?> proxyClass = pg.generateProxyClass(new Class<?>[] {If1.class, If2.class});
     Constructor constructor = proxyClass.getConstructor(InvocationHandler.class);
 
     If1 instance = (If1)constructor.newInstance(new Handler(new Original()));
     instance.sayHello();
+  }
+
+  public static void testAsmProxyGenerator() throws Exception {
+    ProxyGenerator pg = new AsmProxyGenerator();
+    Class<?> proxyClass = pg.generateProxyClass(new Class<?>[] {If1.class, If2.class});
+  }
+
+  public static void main(String[] args) throws Exception {
+    // testJooqProxyGenerator();
+    testAsmProxyGenerator();
   }
 }
