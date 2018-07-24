@@ -1,4 +1,4 @@
-package Proxy;
+package proxy;
 
 import java.io.FileOutputStream;
 import java.lang.reflect.InvocationHandler;
@@ -6,19 +6,21 @@ import java.lang.reflect.InvocationTargetException;
 import java.lang.reflect.Method;
 import java.lang.reflect.Proxy;
 
+// This is a demo for standard Java proxy usage.
 public class ProxyDemo {
-  interface If {
-    void originalMethod(String s);
+  interface If1 {
+    Integer originalMethod(String s);
   }
 
   interface If2 {
     void originalMethod2(String s);
   }
 
-  static class Original implements If, If2 {
-    public void originalMethod(String s) {
+  static class Original implements If1, If2 {
+    public Integer originalMethod(String s) {
       System.out.println("originalMethod: " + s);
       System.out.println(s);
+      return 1;
     }
 
     public void originalMethod2(String s) {
@@ -27,9 +29,9 @@ public class ProxyDemo {
   }
 
   static class Wrapper implements InvocationHandler {
-    private final If original;
+    private final Original original;
 
-    public Wrapper(If original) {
+    public Wrapper(Original original) {
       this.original = original;
     }
 
@@ -38,9 +40,9 @@ public class ProxyDemo {
         throws IllegalAccessException, IllegalArgumentException,
                InvocationTargetException {
       System.out.println("BEFORE");
-      method.invoke(original, args);
+      Object re = method.invoke(original, args);
       System.out.println("AFTER");
-      return null;
+      return re;
     }
   }
 
@@ -49,9 +51,18 @@ public class ProxyDemo {
 
     Original original = new Original();
     Wrapper wrapper = new Wrapper(original);
-    If2 f = (If2)Proxy.newProxyInstance(If.class.getClassLoader(),
-                                        new Class[] {If.class, If2.class},
+    If1 f = (If1)Proxy.newProxyInstance(If1.class.getClassLoader(),
+                                        new Class[] {If1.class, If2.class},
                                         wrapper);
-    f.originalMethod2("Hello");
+    f.originalMethod("Hello");
+
+    try {
+      Class<?> clazz;
+      clazz = Class.forName("proxy.ProxyDemo$If1");
+      System.out.println(clazz.getName());
+    } catch (Exception e) {
+      e.printStackTrace();
+      return;
+    }
   }
 }

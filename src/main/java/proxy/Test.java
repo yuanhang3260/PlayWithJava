@@ -1,11 +1,11 @@
-package asm;
+package proxy;
 
 import java.lang.reflect.Constructor;
 import java.lang.reflect.InvocationTargetException;
 import java.lang.reflect.Method;
 
-import asm.InvocationHandler;
-import asm.ProxyGenerator;
+import proxy.InvocationHandler;
+import proxy.ProxyGenerator;
 
 public class Test {
   public static interface If1 {
@@ -20,7 +20,7 @@ public class Test {
   public static class Original implements If1, If2 {
     @Override
     public void sayHello() {
-      System.out.println("hello");
+      System.out.println("hello proxy");
     }
 
     @Override
@@ -52,13 +52,10 @@ public class Test {
   }
 
   public static void main(String[] args) throws Exception {
-    // If1 instance = (If1)(new Original());
-    // instance.sayHello();
-
     Class<?> proxyClass = ProxyGenerator.generateProxyClass(new Class<?>[] {If1.class, If2.class});
     Constructor constructor = proxyClass.getConstructor(InvocationHandler.class);
 
-    // If1 instance = (If1)constructor.newInstance(new Handler(new Original()));
-    // instance.sayHello();
+    If1 instance = (If1)constructor.newInstance(new Handler(new Original()));
+    instance.sayHello();
   }
 }

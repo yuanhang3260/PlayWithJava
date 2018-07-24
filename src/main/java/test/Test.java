@@ -2,8 +2,12 @@ package test;
 
 import org.objectweb.asm.Type;
 
+import java.lang.reflect.Constructor;
+import java.lang.reflect.InvocationTargetException;
+import java.lang.reflect.Method;
 import java.util.ArrayList;
-import Proxy.ProxyDemo;
+
+import proxy.ProxyDemo;
 
 public class Test<V> {
   private V v;
@@ -21,11 +25,15 @@ public class Test<V> {
   }
 
   public void foo(int x, int y) {
-    this.fooImpl(x, null, null);
+    this.fooImpl(x, y, null, null);
   }
 
-  private void fooImpl(int x, Proxy.ProxyDemo d, Proxy.ProxyDemo d2) {
+  private void fooImpl(int x, int y, proxy.ProxyDemo d, proxy.ProxyDemo d2) {
     for (int i = 0; i < x; i++) {
+      System.out.println(i);
+    }
+
+    for (int i = 0; i < y; i++) {
       System.out.println(i);
     }
   }
@@ -50,13 +58,26 @@ public class Test<V> {
     String s = v.toString();
   }
 
-  public static void main(String[] args) {
-    Test<Integer> t = new Test<Integer>(111117);
-    t.foo(3, 5);
-    t.bar();
+  private interface If1 {
+    void foo(String s);
+    int bar();
+  }
 
-    ProxyDemo p = new ProxyDemo();
-    System.out.println(Type.getDescriptor(ProxyDemo.class));
-    System.out.println(Type.getDescriptor(Integer.class));
+  public void initMethods() {
+    Class<?> clazz;
+    try {
+      clazz = Class.forName("test.Test$If1");
+    } catch (Exception e) {
+      return;
+    }
+
+    for (Method method : clazz.getMethods()) {
+      Method m = method;
+      System.out.println(m.getName());
+    }
+  }
+
+  public static void main(String[] dummy) {
+    Test<Integer> t = new Test<Integer>(111117);
   }
 }

@@ -5,6 +5,9 @@ import java.io.FileNotFoundException;
 import java.io.FileOutputStream;
 import java.io.IOException;
 
+import java.lang.reflect.Constructor;
+import java.lang.reflect.Method;
+
 import org.objectweb.asm.ClassWriter;
 import org.objectweb.asm.MethodVisitor;
 import org.objectweb.asm.Opcodes;
@@ -56,7 +59,7 @@ public class ProxyGenerator {
 
     // Write class data to file.
     try {
-      File file = new File("/home/hy/Desktop/Proxy.class");
+      File file = new File("/usr/local/google/home/hangyuan/Desktop/Proxy.class");
       FileOutputStream fout = new FileOutputStream(file);
       fout.write(data);
       fout.close();
@@ -109,22 +112,17 @@ public class ProxyGenerator {
   private static boolean addProxyMethods(ClassWriter cw,
                                          String proxyClassName,
                                          Class<?>[] interfaces) {
-    MethodVisitor mv = cw.visitMethod(Opcodes.ACC_PUBLIC, "sayHello", "()V", null, null);
-
-    mv.visitVarInsn(Opcodes.ALOAD, 0);
-    mv.visitFieldInsn(Opcodes.GETFIELD,
-                      proxyClassName,
-                      "handler",
-                      Type.getDescriptor(InvocationHandler.class));
-    mv.visitMethodInsn(Opcodes.INVOKEINTERFACE,
-                       "asm/Test$If1",
-                       "sayHello",
-                       "()V",
-                       /* is interface = */true);
-    mv.visitInsn(Opcodes.RETURN);
-
-    mv.visitMaxs(1, 1);
-    mv.visitEnd();
+    int methodIndex = 0;
+    for (Class<?> interfacee : interfaces) {
+      for (Method method : interfacee.getMethods()) {
+        // Save the method as a class field.
+        cw.visitField(Opcodes.ACC_PRIVATE,  // access flags
+                      "m" + String.valueOf(methodIndex++),  // field name
+                      Type.getDescriptor(Method.class),  // field type
+                      null,  // signature
+                      null).visitEnd();  // default value
+      }
+    }
     return true;
   }
 
@@ -137,5 +135,4 @@ public class ProxyGenerator {
       return this.defineClass(name, data, 0, data.length);
     }
   }
-
 }
