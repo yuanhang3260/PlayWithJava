@@ -1,16 +1,12 @@
 package proxy;
 
 public class ExampleProxy implements proxy.Test.If1, proxy.Test.If2 {
-  private proxy.InvocationHandler handler;
-  private java.util.HashMap<String, java.lang.reflect.Method> proxyMethods;
+  private static java.util.HashMap<String, java.lang.reflect.Method> proxyMethods;
 
-  public ExampleProxy(proxy.InvocationHandler handler) {
-    this.handler = handler;
-    this.proxyMethods = new java.util.HashMap<String, java.lang.reflect.Method>();
-    initMethodFields();
-  }
-  
-  public void initMethodFields() {
+  private proxy.InvocationHandler handler;
+
+  static {
+    proxyMethods = new java.util.HashMap<String, java.lang.reflect.Method>();
     Class<?> clazz;
     try {
       clazz = Class.forName("proxy.Test$If1");
@@ -22,10 +18,13 @@ public class ExampleProxy implements proxy.Test.If1, proxy.Test.If2 {
       for (java.lang.reflect.Method method : clazz.getMethods()) {
         proxyMethods.put(method.toString(), method);
       }
-    } catch (Exception e) {
-      e.printStackTrace();
-      return;
+    } catch (ClassNotFoundException e) {
+      throw new proxy.ClassNotFoundError(e.getMessage());
     }
+  }
+
+  public ExampleProxy(proxy.InvocationHandler handler) {
+    this.handler = handler;
   }
 
   public void sayHello() {

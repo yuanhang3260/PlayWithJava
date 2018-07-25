@@ -9,6 +9,7 @@ import java.lang.reflect.Method;
 import java.util.HashMap;
 
 import org.objectweb.asm.ClassWriter;
+import org.objectweb.asm.Label;
 import org.objectweb.asm.MethodVisitor;
 import org.objectweb.asm.Opcodes;
 import org.objectweb.asm.Type;
@@ -29,7 +30,7 @@ public class AsmProxyGenerator extends ProxyGenerator {
   }
 
   public Class<?> generateProxyClass(Class<?>[] interfaces) {
-    ClassWriter cw = new ClassWriter(ClassWriter.COMPUTE_MAXS);
+    ClassWriter cw = new ClassWriter(ClassWriter.COMPUTE_FRAMES);
 
     // Generate type names, note that all "." in class path are replaced by "/".
     //
@@ -59,7 +60,7 @@ public class AsmProxyGenerator extends ProxyGenerator {
                   null).visitEnd();  // default value
     // Add field:
     //   private java.util.HashMap<String, java.lang.reflect.Method> proxyMethods;
-    cw.visitField(Opcodes.ACC_PRIVATE,  // access flags
+    cw.visitField(Opcodes.ACC_PRIVATE | Opcodes.ACC_STATIC ,  // access flags
                   "proxyMethods",  // field name
                   Type.getDescriptor(HashMap.class),  // field type
                   null,  // signature
@@ -85,7 +86,8 @@ public class AsmProxyGenerator extends ProxyGenerator {
 
     // Write class data to file.
     try {
-      File file = new File("/home/hy/Desktop/Proxy.class");
+      File file = new File("/usr/local/google/home/hangyuan/Desktop/Proxy.class");
+      // File file = new File("/home/hy/Desktop/Proxy.class");
       FileOutputStream fout = new FileOutputStream(file);
       fout.write(data);
       fout.close();
@@ -141,42 +143,45 @@ public class AsmProxyGenerator extends ProxyGenerator {
                                "handler",
                                Type.getDescriptor(InvocationHandler.class));
 
-    // source: this.proxyMethods = new java.util.HashMap<String, java.lang.reflect.Method>();
-    constructor.visitVarInsn(Opcodes.ALOAD, 0);
-    constructor.visitTypeInsn(Opcodes.NEW, "java/util/HashMap");
-    constructor.visitInsn(Opcodes.DUP);
-    constructor.visitMethodInsn(Opcodes.INVOKESPECIAL,
-                                "java/util/HashMap",
-                                "<init>",
-                                "()V",
-                                /* is interface = */false);
-    constructor.visitFieldInsn(Opcodes.PUTFIELD,
-                               proxyClassName,
-                               "proxyMethods",
-                               Type.getDescriptor(java.util.HashMap.class));
-
-    // source: this.initMethodFields();
-    constructor.visitVarInsn(Opcodes.ALOAD, 0);
-    constructor.visitMethodInsn(Opcodes.INVOKEVIRTUAL,
-                                proxyClassName,
-                                "initMethodFields",
-                                "()V",
-                                /* is interface = */false);
-
     constructor.visitInsn(Opcodes.RETURN);
-    constructor.visitMaxs(1, 1);
+    constructor.visitMaxs(0, 0);
     constructor.visitEnd();
     return true;
   }
 
+  // This method creates class static block to initialize method map.
   private boolean addInitMethod(ClassWriter cw, String proxyClassName, Class<?>[] interfaces) 
       throws NoSuchMethodException {
-    MethodVisitor mv = cw.visitMethod(Opcodes.ACC_PRIVATE,
-                                      "initMethodFields",
+    MethodVisitor mv = cw.visitMethod(Opcodes.ACC_STATIC,
+                                      "<clinit>",
                                       "()V",
                                       null, null);
 
-    for (Class ifc : interfaces) {
+    // source: proxyMethods = new java.util.HashMap<String, java.lang.reflect.Method>();
+    mv.visitTypeInsn(Opcodes.NEW, "java/util/HashMap");
+    mv.visitInsn(Opcodes.DUP);
+    mv.visitMethodInsn(Opcodes.INVOKESPECIAL,
+                       "java/util/HashMap",
+                       "<init>",
+                       "()V",
+                       /* is interface = */false);
+    mv.visitFieldInsn(Opcodes.PUTSTATIC,
+                      proxyClassName,
+                      "proxyMethods",
+                      Type.getDescriptor(java.util.HashMap.class));
+
+    Label tryStart = new Label();
+    mv.visitLabel(tryStart);
+
+    Label nextIfc = new Label();
+    for (int index = 0; index < interfaces.length; index++) {
+      Class ifc = interfaces[index];
+
+      if (index > 0) {
+        mv.visitLabel(nextIfc);
+        nextIfc = new Label();
+      }
+
       // source: clazz = Class.forName("xx.xxx");
       mv.visitLdcInsn(ifc.getName());
       mv.visitMethodInsn(Opcodes.INVOKESTATIC,
@@ -184,8 +189,8 @@ public class AsmProxyGenerator extends ProxyGenerator {
                          "forName",
                          Type.getMethodDescriptor(Class.class.getMethod("forName",String.class)),
                          /* is interface = */false);
-      mv.visitVarInsn(Opcodes.ASTORE, 1);  // var1 = clazz
-      mv.visitVarInsn(Opcodes.ALOAD, 1);
+      mv.visitVarInsn(Opcodes.ASTORE, 0);  // var0 = clazz
+      mv.visitVarInsn(Opcodes.ALOAD, 0);
 
       // source:
       //   for (java.lang.reflect.Method method : clazz.getMethods()) {
@@ -196,28 +201,132 @@ public class AsmProxyGenerator extends ProxyGenerator {
                          "getMethods",
                          Type.getMethodDescriptor(Class.class.getMethod("getMethods")),
                          /* is interface = */false);
-      mv.visitVarInsn(Opcodes.ASTORE, 2);  // var2 = methods = clazz.getMethods()
-      mv.visitVarInsn(Opcodes.ALOAD, 2);
+      mv.visitVarInsn(Opcodes.ASTORE, 1);  // var1 = methods = clazz.getMethods()
 
+      mv.visitVarInsn(Opcodes.ALOAD, 1);
       mv.visitInsn(Opcodes.ARRAYLENGTH);
-      mv.visitVarInsn(Opcodes.ISTORE, 3);  // var3 = methods.length
+      mv.visitVarInsn(Opcodes.ISTORE, 2);  // var2 = methods.length
       mv.visitInsn(Opcodes.ICONST_0);
-      mv.visitVarInsn(Opcodes.ISTORE, 4);  // var4 = i
+      mv.visitVarInsn(Opcodes.ISTORE, 3);  // var3 = i
 
       // Start for loop.
-      mv.visitVarInsn(Opcodes.ILOAD, 4);
-      mv.visitVarInsn(Opcodes.ILOAD, 3);
+      Label forLoopStart = new Label();
+      mv.visitLabel(forLoopStart);
+      mv.visitVarInsn(Opcodes.ILOAD, 3);  // i
+      mv.visitVarInsn(Opcodes.ILOAD, 2);  // methods.length
+      mv.visitJumpInsn(Opcodes.IF_ICMPGE, nextIfc);  // if (i >= methods.length) break
+
+      mv.visitVarInsn(Opcodes.ALOAD, 1);  // methods
+      mv.visitVarInsn(Opcodes.ILOAD, 3);  // i
+      mv.visitInsn(Opcodes.AALOAD);  // methods[i]
+      mv.visitVarInsn(Opcodes.ASTORE, 4);  // var4 = method = methods[i]
+
+      mv.visitFieldInsn(Opcodes.GETSTATIC,
+                        proxyClassName,
+                        "proxyMethods",
+                        Type.getDescriptor(java.util.HashMap.class));  // this.proxyMethods
+
+      mv.visitVarInsn(Opcodes.ALOAD, 4);
+      mv.visitMethodInsn(Opcodes.INVOKEVIRTUAL,
+                         "java/lang/reflect/Method",
+                         "toString",
+                         "()Ljava/lang/String;",
+                         /* is interface = */false);  // method.toString()
+
+      mv.visitVarInsn(Opcodes.ALOAD, 4);  /// method
+      mv.visitMethodInsn(Opcodes.INVOKEVIRTUAL,
+                         "java/util/HashMap",
+                         "put",
+                         "(Ljava/lang/Object;Ljava/lang/Object;)Ljava/lang/Object;",
+                         /* is interface = */false);  // proxyMethods.put(method.toString(), method)
+      mv.visitInsn(Opcodes.POP);
+
+      mv.visitIincInsn(3, 1);  // i++
+      mv.visitJumpInsn(Opcodes.GOTO, forLoopStart);
     }
 
+    Label tryEnd = new Label();
+    mv.visitLabel(tryEnd);
 
+    // Actually no more interface. Jump to return.
+    mv.visitLabel(nextIfc);
+    Label returnLabel = new Label();
+    mv.visitJumpInsn(Opcodes.GOTO, returnLabel);
+
+    // Handle exception.
+    Label catchStart = new Label();
+    mv.visitLabel(catchStart);
+
+    mv.visitVarInsn(Opcodes.ASTORE, 1);  // var1 = catch (Exception e)
+    mv.visitTypeInsn(Opcodes.NEW, "proxy/ClassNotFoundError");
+    mv.visitInsn(Opcodes.DUP);
+    mv.visitVarInsn(Opcodes.ALOAD, 1);
+    mv.visitMethodInsn(Opcodes.INVOKEVIRTUAL,
+                       "java/lang/ClassNotFoundException",
+                       "getMessage",
+                       "()Ljava/lang/String;",
+                       /* is interface = */false);  // e.getMessage()
+    mv.visitMethodInsn(Opcodes.INVOKESPECIAL,
+                       "proxy/ClassNotFoundError",
+                       "<init>",
+                       "(Ljava/lang/String;)V",
+                       /* is interface = */false);  // new ClassNotFoundError(e.getMessage())
+    mv.visitInsn(Opcodes.ATHROW);  // throw
+
+    mv.visitLabel(returnLabel);
     mv.visitInsn(Opcodes.RETURN);
-    mv.visitMaxs(1, 1);
+    mv.visitTryCatchBlock(tryStart, tryEnd, catchStart, "java/lang/ClassNotFoundException");
+
+    mv.visitMaxs(0, 0);  // Does not matter, COMPUTE_FRAMES is used.
     mv.visitEnd();
 
     return true;
   }
 
-  private boolean addProxyMethods(ClassWriter cw, String proxyClassName, Class<?>[] interfaces) {
+  private boolean addProxyMethods(ClassWriter cw, String proxyClassName, Class<?>[] interfaces)
+      throws NoSuchMethodException {
+    for (Class ifc : interfaces) {
+      for (Method method : ifc.getMethods()) {
+        addProxyMethodImpl(cw, proxyClassName, ifc, method);
+      }
+    }
+    return true;
+  }
+
+  private boolean addProxyMethodImpl(
+      ClassWriter cw, String proxyClassName, Class ifc, Method method) throws NoSuchMethodException{
+    MethodVisitor mv = cw.visitMethod(Opcodes.ACC_PUBLIC,
+                                      method.getName(),
+                                      Type.getMethodDescriptor(method),
+                                      null, null);
+
+    mv.visitFieldInsn(Opcodes.GETSTATIC,
+                      proxyClassName,
+                      "proxyMethods",
+                      Type.getDescriptor(java.util.HashMap.class));  // this.proxyMethods
+    mv.visitLdcInsn(method.toString());   // methodName
+    mv.visitMethodInsn(Opcodes.INVOKEVIRTUAL,
+                       "java/util/HashMap",
+                       "get",
+                       Type.getMethodDescriptor(HashMap.class.getMethod("get", Object.class)),
+                       /* is interface = */false);   // m = proxyMethods.get(methodName);
+    mv.visitTypeInsn(Opcodes.CHECKCAST, "java/lang/reflect/Method");
+
+    int numArgs = method.getParameterTypes().length;
+    int localVarIndexForMethod = numArgs + 1;
+    mv.visitVarInsn(Opcodes.ASTORE, localVarIndexForMethod);  // var? = m
+
+    // Prepare for handler.invoke(this, m, args)
+    mv.visitVarInsn(Opcodes.ALOAD, 0);  // push this
+    mv.visitVarInsn(Opcodes.ALOAD, localVarIndexForMethod);  // push m
+    mv.visitIntInsn(Opcodes.SIPUSH, numArgs);
+    mv.visitTypeInsn(Opcodes.ANEWARRAY, "java/lang/Object");  // args = new Object[num_of_args];
+
+    mv.visitInsn(Opcodes.DUP);
+    for (int i = 0; i < numArgs; i++) {
+      
+    }
+
     return true;
   }
 

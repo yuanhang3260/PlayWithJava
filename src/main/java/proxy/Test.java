@@ -66,7 +66,12 @@ public class Test {
 
   public static void testAsmProxyGenerator() throws Exception {
     ProxyGenerator pg = new AsmProxyGenerator();
+
     Class<?> proxyClass = pg.generateProxyClass(new Class<?>[] {If1.class, If2.class});
+    Constructor constructor = proxyClass.getConstructor(InvocationHandler.class);
+
+    If1 instance = (If1)constructor.newInstance(new Handler(new Original()));
+    // instance.sayHello();
   }
 
   public static void main(String[] args) throws Exception {
