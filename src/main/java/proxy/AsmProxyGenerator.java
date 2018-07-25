@@ -85,16 +85,15 @@ public class AsmProxyGenerator extends ProxyGenerator {
     byte[] data = cw.toByteArray();
 
     // Write class data to file.
-    try {
-      File file = new File("/usr/local/google/home/hangyuan/Desktop/Proxy.class");
-      // File file = new File("/home/hy/Desktop/Proxy.class");
-      FileOutputStream fout = new FileOutputStream(file);
-      fout.write(data);
-      fout.close();
-    } catch (Exception e) {
-      e.printStackTrace();
-      return null;
-    }
+    // try {
+    //   File file = new File("/home/hy/Desktop/Proxy.class");
+    //   FileOutputStream fout = new FileOutputStream(file);
+    //   fout.write(data);
+    //   fout.close();
+    // } catch (Exception e) {
+    //   e.printStackTrace();
+    //   return null;
+    // }
 
     Class<?> clazz = classLoader.defineClassForName(proxyClassName.replace("/", "."), data);
     return clazz;
@@ -312,22 +311,231 @@ public class AsmProxyGenerator extends ProxyGenerator {
                        /* is interface = */false);   // m = proxyMethods.get(methodName);
     mv.visitTypeInsn(Opcodes.CHECKCAST, "java/lang/reflect/Method");
 
-    int numArgs = method.getParameterTypes().length;
+    Class[] parameterTypes = method.getParameterTypes();
+    int numArgs = parameterTypes.length;
     int localVarIndexForMethod = numArgs + 1;
     mv.visitVarInsn(Opcodes.ASTORE, localVarIndexForMethod);  // var? = m
 
+    Label tryStart = new Label();
+    mv.visitLabel(tryStart);
+
     // Prepare for handler.invoke(this, m, args)
+    mv.visitVarInsn(Opcodes.ALOAD, 0);  // push handler
+    mv.visitFieldInsn(Opcodes.GETFIELD,
+                      proxyClassName,
+                      "handler",
+                      Type.getDescriptor(InvocationHandler.class));
+
     mv.visitVarInsn(Opcodes.ALOAD, 0);  // push this
     mv.visitVarInsn(Opcodes.ALOAD, localVarIndexForMethod);  // push m
     mv.visitIntInsn(Opcodes.SIPUSH, numArgs);
     mv.visitTypeInsn(Opcodes.ANEWARRAY, "java/lang/Object");  // args = new Object[num_of_args];
 
-    mv.visitInsn(Opcodes.DUP);
+    // Push args into Object[]
     for (int i = 0; i < numArgs; i++) {
-      
+      mv.visitInsn(Opcodes.DUP);
+      mv.visitIntInsn(Opcodes.SIPUSH, i);
+
+      Class paramClass = parameterTypes[i];
+      castParameterType(mv, paramClass, i);
+      mv.visitInsn(Opcodes.AASTORE);  // methods[i]
     }
 
+    mv.visitMethodInsn(
+        Opcodes.INVOKEINTERFACE,
+        "proxy/InvocationHandler",
+        "invoke",
+        "(Ljava/lang/Object;Ljava/lang/reflect/Method;[Ljava/lang/Object;)Ljava/lang/Object;",
+        /* is interface = */true);   // handler.invoke(this, m, args);
+
+    int localVarIndexForResult = localVarIndexForMethod + 1;
+    mv.visitVarInsn(Opcodes.ASTORE, localVarIndexForResult);  // re = handler.invoke(this, m, args);
+
+    Label tryEnd = new Label();
+    castReturnType(mv, method.getReturnType(), localVarIndexForResult, tryEnd);
+
+    Label catchStart = new Label();
+    mv.visitLabel(catchStart);
+
+    // Handle exception
+    mv.visitVarInsn(Opcodes.ASTORE, localVarIndexForResult);  // var1 = catch (Exception e)
+    mv.visitTypeInsn(Opcodes.NEW, "proxy/MethodInvocationError");
+    mv.visitInsn(Opcodes.DUP);
+    mv.visitVarInsn(Opcodes.ALOAD, localVarIndexForResult);
+    mv.visitMethodInsn(Opcodes.INVOKEVIRTUAL,
+                       "java/lang/Exception",
+                       "getMessage",
+                       "()Ljava/lang/String;",
+                       /* is interface = */false);  // e.getMessage()
+    mv.visitMethodInsn(Opcodes.INVOKESPECIAL,
+                       "proxy/MethodInvocationError",
+                       "<init>",
+                       "(Ljava/lang/String;)V",
+                       /* is interface = */false);  // new ClassNotFoundError(e.getMessage())
+    mv.visitInsn(Opcodes.ATHROW);  // throw
+
+    mv.visitTryCatchBlock(tryStart, tryEnd, catchStart, "java/lang/Exception");
+
+    mv.visitMaxs(0, 0);  // Does not matter, COMPUTE_FRAMES is used.
+    mv.visitEnd();
+
     return true;
+  }
+
+  private void castParameterType(MethodVisitor mv, Class<?> paramClass, int index)
+      throws NoSuchMethodException {
+    if (paramClass.getName().equals("int")) {
+      mv.visitVarInsn(Opcodes.ILOAD, index + 1);
+      mv.visitMethodInsn(Opcodes.INVOKESTATIC,
+                         "java/lang/Integer",
+                         "valueOf",
+                         Type.getMethodDescriptor(Integer.class.getMethod("valueOf", int.class)),
+                         /* is interface = */false);
+    } else if (paramClass.getName().equals("short")) {
+      mv.visitVarInsn(Opcodes.ILOAD, index + 1);
+      mv.visitMethodInsn(Opcodes.INVOKESTATIC,
+                         "java/lang/Short",
+                         "valueOf",
+                         Type.getMethodDescriptor(Short.class.getMethod("valueOf", short.class)),
+                         /* is interface = */false);
+    } else if (paramClass.getName().equals("long")) {
+      mv.visitVarInsn(Opcodes.LLOAD, index + 1);
+      mv.visitMethodInsn(Opcodes.INVOKESTATIC,
+                         "java/lang/Long",
+                         "valueOf",
+                         Type.getMethodDescriptor(Long.class.getMethod("valueOf", long.class)),
+                         /* is interface = */false);
+    } else if (paramClass.getName().equals("float")) {
+      mv.visitVarInsn(Opcodes.FLOAD, index + 1);
+      mv.visitMethodInsn(Opcodes.INVOKESTATIC,
+                         "java/lang/Float",
+                         "valueOf",
+                         Type.getMethodDescriptor(Float.class.getMethod("valueOf", float.class)),
+                         /* is interface = */false);
+    } else if (paramClass.getName().equals("double")) {
+      mv.visitVarInsn(Opcodes.DLOAD, index + 1);
+      mv.visitMethodInsn(Opcodes.INVOKESTATIC,
+                         "java/lang/Double",
+                         "valueOf",
+                         Type.getMethodDescriptor(
+                            Double.class.getMethod("valueOf", double.class)),
+                         /* is interface = */false);
+    } else if (paramClass.getName().equals("byte")) {
+      mv.visitVarInsn(Opcodes.ILOAD, index + 1);
+      mv.visitMethodInsn(Opcodes.INVOKESTATIC,
+                         "java/lang/Byte",
+                         "valueOf",
+                         Type.getMethodDescriptor(Byte.class.getMethod("valueOf",byte.class)),
+                         /* is interface = */false);
+    } else if (paramClass.getName().equals("char")) {
+      mv.visitVarInsn(Opcodes.ILOAD, index + 1);
+      mv.visitMethodInsn(Opcodes.INVOKESTATIC,
+                         "java/lang/Character",
+                         "valueOf",
+                         Type.getMethodDescriptor(
+                            Character.class.getMethod("valueOf",char.class)),
+                         /* is interface = */false);
+    } else if (paramClass.getName().equals("boolean")) {
+      mv.visitVarInsn(Opcodes.ILOAD, index + 1);
+      mv.visitMethodInsn(Opcodes.INVOKESTATIC,
+                         "java/lang/Boolean",
+                         "valueOf",
+                         Type.getMethodDescriptor(
+                            Boolean.class.getMethod("valueOf",boolean.class)),
+                         /* is interface = */false);
+    } else {
+      mv.visitVarInsn(Opcodes.ALOAD, 1);
+    }
+  }
+
+  private void castReturnType(
+      MethodVisitor mv, Class<?> returnType, int localVarIndexForResult, Label tryEnd) {
+    if (returnType.getName().equals("void")) {
+      // If original method return value if void, just call return instead of areturn.
+      mv.visitLabel(tryEnd);
+      mv.visitInsn(Opcodes.RETURN);
+    } else {
+      mv.visitVarInsn(Opcodes.ALOAD, localVarIndexForResult);  // re
+
+      String typeName = returnType.getName();
+      if (typeName.equals("int")) {
+        mv.visitTypeInsn(Opcodes.CHECKCAST, "java/lang/Integer");
+        mv.visitMethodInsn(Opcodes.INVOKEVIRTUAL,
+                           "java/lang/Integer",
+                           "intValue",
+                           "()I",
+                           /* is interface = */false);  // e.getMessage()
+        mv.visitLabel(tryEnd);
+        mv.visitInsn(Opcodes.IRETURN);
+      } else if (typeName.equals("short")) {
+        mv.visitTypeInsn(Opcodes.CHECKCAST, "java/lang/Short");
+        mv.visitMethodInsn(Opcodes.INVOKEVIRTUAL,
+                           "java/lang/Short",
+                           "shortValue",
+                           "()S",
+                           /* is interface = */false);  // e.getMessage()
+        mv.visitLabel(tryEnd);
+        mv.visitInsn(Opcodes.IRETURN);
+      } else if (typeName.equals("long")) {
+        mv.visitTypeInsn(Opcodes.CHECKCAST, "java/lang/Long");
+        mv.visitMethodInsn(Opcodes.INVOKEVIRTUAL,
+                           "java/lang/Long",
+                           "longValue",
+                           "()J",
+                           /* is interface = */false);  // e.getMessage()
+        mv.visitLabel(tryEnd);
+        mv.visitInsn(Opcodes.LRETURN);
+      } else if (typeName.equals("float")) {
+        mv.visitTypeInsn(Opcodes.CHECKCAST, "java/lang/Float");
+        mv.visitMethodInsn(Opcodes.INVOKEVIRTUAL,
+                           "java/lang/Float",
+                           "floatValue",
+                           "()F",
+                           /* is interface = */false);  // e.getMessage()
+        mv.visitLabel(tryEnd);
+        mv.visitInsn(Opcodes.FRETURN);
+      } else if (typeName.equals("double")) {
+        mv.visitTypeInsn(Opcodes.CHECKCAST, "java/lang/Double");
+        mv.visitMethodInsn(Opcodes.INVOKEVIRTUAL,
+                           "java/lang/Double",
+                           "doubleValue",
+                           "()D",
+                           /* is interface = */false);  // e.getMessage()
+        mv.visitLabel(tryEnd);
+        mv.visitInsn(Opcodes.DRETURN);
+      } else if (typeName.equals("byte")) {
+        mv.visitTypeInsn(Opcodes.CHECKCAST, "java/lang/Byte");
+        mv.visitMethodInsn(Opcodes.INVOKEVIRTUAL,
+                           "java/lang/Byte",
+                           "byteValue",
+                           "()B",
+                           /* is interface = */false);  // e.getMessage()
+        mv.visitLabel(tryEnd);
+        mv.visitInsn(Opcodes.IRETURN);
+      } else if (typeName.equals("char")) {
+        mv.visitTypeInsn(Opcodes.CHECKCAST, "java/lang/Character");
+        mv.visitMethodInsn(Opcodes.INVOKEVIRTUAL,
+                           "java/lang/Character",
+                           "charValue",
+                           "()C",
+                           /* is interface = */false);  // e.getMessage()
+        mv.visitLabel(tryEnd);
+        mv.visitInsn(Opcodes.IRETURN);
+      } else if (typeName.equals("boolean")) {
+        mv.visitTypeInsn(Opcodes.CHECKCAST, "java/lang/Boolean");
+        mv.visitMethodInsn(Opcodes.INVOKEVIRTUAL,
+                           "java/lang/Boolean",
+                           "booleanValue",
+                           "()Z",
+                           /* is interface = */false);  // e.getMessage()
+        mv.visitLabel(tryEnd);
+        mv.visitInsn(Opcodes.IRETURN);
+      }else {
+        mv.visitTypeInsn(Opcodes.CHECKCAST, Type.getInternalName(returnType));
+        mv.visitLabel(tryEnd);
+        mv.visitInsn(Opcodes.ARETURN);
+      }
+    }
   }
 
   private static class ProxyClassLoader extends ClassLoader {

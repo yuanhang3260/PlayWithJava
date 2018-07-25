@@ -59,13 +59,12 @@ public class JooqProxyGenerator extends ProxyGenerator {
       "package {4};\n" +
       "\n" +
       "public class {0} implements {1} '{'\n" +
+      "  private static java.util.HashMap<String, java.lang.reflect.Method> proxyMethods;\n" +
+      "\n" +
       "  private proxy.InvocationHandler handler;\n" +
-      "  private java.util.HashMap<String, java.lang.reflect.Method> proxyMethods;\n" +
       "\n" +
       "  public {0}(proxy.InvocationHandler handler) '{'\n" +
       "    this.handler = handler;\n" +
-      "    this.proxyMethods = new java.util.HashMap<String, java.lang.reflect.Method>();\n" +
-      "    init();\n" +
       "  '}'\n" +
       "  \n" +
       "{2}\n" +
@@ -81,7 +80,7 @@ public class JooqProxyGenerator extends ProxyGenerator {
       }
     );
 
-    System.out.println(source);
+    // System.out.println(source);
     try {
       return org.joor.Reflect.compile(
           ProxyGenerator.PACKAGE_NAME + "." + proxyClassName, source).type();
@@ -101,9 +100,8 @@ public class JooqProxyGenerator extends ProxyGenerator {
         "      for (java.lang.reflect.Method method : clazz.getMethods()) '{'\n" +
         "        proxyMethods.put(method.toString(), method);\n" +
         "      '}'\n" +
-        "    '}' catch (Exception e) '{'\n" +
-        "      e.printStackTrace();\n" +
-        "      return;\n" +
+        "    '}' catch (ClassNotFoundException e) '{'\n" +
+        "      throw new proxy.ClassNotFoundError(e.getMessage());\n" +
         "    '}'\n",
         new Object[] {
           ifc.getName()
@@ -112,7 +110,8 @@ public class JooqProxyGenerator extends ProxyGenerator {
     }
 
     String code = MessageFormat.format(
-        "  public void init() '{'\n" +
+        "  static '{'\n" +
+        "    proxyMethods = new java.util.HashMap<String, java.lang.reflect.Method>();\n" +
         "{0}\n" +
         "  '}'",
         new Object[] { block }
@@ -137,7 +136,7 @@ public class JooqProxyGenerator extends ProxyGenerator {
     boolean voidReturn = method.getReturnType().equals(Void.TYPE);
     String returnVal = voidReturn ?
         "return;\n" : MessageFormat.format("return ({0})re;\n",
-                          new Object[] { method.getReturnType().getCanonicalName() });
+                          new Object[] { getReturnTypeCast(method.getReturnType()) });
     String exceptionReturn = voidReturn ? "" : "return null;";
 
 
@@ -148,8 +147,7 @@ public class JooqProxyGenerator extends ProxyGenerator {
       "      Object re = handler.invoke(this, m, new Object[] '{'{4}});\n" +
       "      {5}" +
       "    '}' catch (Exception e) '{'\n" +
-      "      e.printStackTrace();\n" +
-      "      {6}\n" +
+      "      throw new proxy.MethodInvocationError(e.getMessage());\n" +
       "    '}'\n" +
       "  '}'\n",
       new Object[] {
@@ -159,9 +157,31 @@ public class JooqProxyGenerator extends ProxyGenerator {
         method.toString(),
         parameterIndentifierList,
         returnVal,
-        exceptionReturn,
       }
     );
     return code;
+  }
+
+  public String getReturnTypeCast(Class returnType) {
+    String returnTypeName = returnType.getCanonicalName();
+    if (returnTypeName.equals("int")) {
+      return "Integer";
+    } else if (returnTypeName.equals("short")) {
+      return "Short";
+    } else if (returnTypeName.equals("long")) {
+      return "Long";
+    } else if (returnTypeName.equals("float")) {
+      return "Float";
+    } else if (returnTypeName.equals("double")) {
+      return "Double";
+    } else if (returnTypeName.equals("byte")) {
+      return "Byte";
+    } else if (returnTypeName.equals("char")) {
+      return "Character";
+    } else if (returnTypeName.equals("boolean")) {
+      return "Boolean";
+    } else {
+      return returnTypeName;
+    }
   }
 }
