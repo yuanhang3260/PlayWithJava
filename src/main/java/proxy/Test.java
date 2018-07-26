@@ -15,7 +15,10 @@ public class Test {
   };
 
   public static interface If2 {
-    String bar(String str, int num);
+    String bar(String str,
+               int intVal, short shortVal, long longVal,
+               float floatVal, double doubleVal,
+               byte byteVal, char charVal, boolean booleanVal);
   }
 
   public static class Original implements If1, If2 {
@@ -31,8 +34,20 @@ public class Test {
     }
 
     @Override
-    public String bar(String str, int num) {
-      return "bar: " + str + "-" + String.valueOf(num);
+    public String bar(String strVal,
+                      int intVal, short shortVal, long longVal,
+                      float floatVal, double doubleVal,
+                      byte byteVal, char charVal, boolean booleanVal) {
+      System.out.println("string val: " + strVal);
+      System.out.println("int val: " + intVal);
+      System.out.println("short val: " + shortVal);
+      System.out.println("long val: " + longVal);
+      System.out.println("float val: " + floatVal);
+      System.out.println("double val: " + doubleVal);
+      System.out.println("byte val: " + byteVal);
+      System.out.println("char val: " + charVal);
+      System.out.println("boolean val: " + booleanVal);
+      return "success";
     }
   }
 
@@ -59,7 +74,7 @@ public class Test {
       pg = new AsmProxyGenerator();
     } else if (type.equals("jooq")) {
       pg = new JooqProxyGenerator(new String[] {
-        "/home/hy/Desktop/test/Java/PlayWithJava/target/classes"
+        "/home/hy/Desktop/test/Java/PlayWithJava/target/classes",
       });
     } else {
       return;
@@ -75,7 +90,9 @@ public class Test {
     System.out.println(((If1)obj).foo("foo"));
     System.out.println();
 
-    System.out.println(((If2)obj).bar("testBar", 5));
+    System.out.println(((If2)obj).bar("bar", (int)1, (short)2, (long)3,
+                                      (float)4.5, (double)5.5,
+                                      (byte)6, (char)'c', true));
     System.out.println();
   }
 

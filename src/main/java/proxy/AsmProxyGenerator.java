@@ -1,9 +1,6 @@
 package proxy;
 
-import java.io.File;
-import java.io.FileNotFoundException;
-import java.io.FileOutputStream;
-import java.io.IOException;
+import java.io.*;
 import java.lang.reflect.Constructor;
 import java.lang.reflect.Method;
 import java.util.HashMap;
@@ -17,6 +14,8 @@ import org.objectweb.asm.Type;
 import proxy.InvocationHandler;
 import proxy.ProxyGenerator;
 
+// AsmProxyGenerator creates a proxy class by generating bytecode directly. See ExampleProxy.java
+// as an example source code of the proxy class.
 public class AsmProxyGenerator extends ProxyGenerator {
   // Automatically increments on every call of genearateProxyClass();
   protected static int classId = 0;
@@ -103,8 +102,6 @@ public class AsmProxyGenerator extends ProxyGenerator {
   //
   // public hyproxygen.ProxyClass(InvocationHandler handler) {
   //   this.handler = handler;
-  //   this.proxyMethods = new java.util.HashMap<String, java.lang.reflect.Method>();
-  //   this.initMethodFields();
   // }
   //
   // Byte code:
@@ -113,14 +110,7 @@ public class AsmProxyGenerator extends ProxyGenerator {
   //   4: aload_0
   //   5: aload_1
   //   6: putfield      #2                  // Field handler:Lproxy/InvocationHandler;
-  //   9: aload_0
-  //  10: new           #3                  // class java/util/HashMap
-  //  13: dup
-  //  14: invokespecial #4                  // Method java/util/HashMap."<init>":()V
-  //  17: putfield      #5                  // Field proxyMethods:Ljava/util/HashMap;
-  //  20: aload_0
-  //  21: invokevirtual #6                  // Method initMethodFields:()V
-  //  24: return
+  //   9: return
   //
   private boolean addConstructor(ClassWriter cw, String proxyClassName) {
     MethodVisitor constructor = cw.visitMethod(Opcodes.ACC_PUBLIC,
@@ -313,7 +303,7 @@ public class AsmProxyGenerator extends ProxyGenerator {
 
     Class[] parameterTypes = method.getParameterTypes();
     int numArgs = parameterTypes.length;
-    int localVarIndexForMethod = numArgs + 1;
+    int localVarIndexForMethod = getArgsLength(parameterTypes) + 1;
     mv.visitVarInsn(Opcodes.ASTORE, localVarIndexForMethod);  // var? = m
 
     Label tryStart = new Label();
@@ -332,12 +322,13 @@ public class AsmProxyGenerator extends ProxyGenerator {
     mv.visitTypeInsn(Opcodes.ANEWARRAY, "java/lang/Object");  // args = new Object[num_of_args];
 
     // Push args into Object[]
+    int localVarIndex = 1;
     for (int i = 0; i < numArgs; i++) {
       mv.visitInsn(Opcodes.DUP);
       mv.visitIntInsn(Opcodes.SIPUSH, i);
 
       Class paramClass = parameterTypes[i];
-      castParameterType(mv, paramClass, i);
+      localVarIndex = castParameterType(mv, paramClass, localVarIndex);
       mv.visitInsn(Opcodes.AASTORE);  // methods[i]
     }
 
@@ -382,69 +373,91 @@ public class AsmProxyGenerator extends ProxyGenerator {
     return true;
   }
 
-  private void castParameterType(MethodVisitor mv, Class<?> paramClass, int index)
+  // Get the total length of args in local variable space. Note long and double types take one
+  // additional slot.
+  private int getArgsLength(Class[] parameterTypes) {
+    int length = parameterTypes.length;
+    for (Class type : parameterTypes) {
+      String typeStr = type.getName();
+      if (typeStr.equals("long") || typeStr.equals("double")) {
+        length++;
+      }
+    }
+    return length;
+  }
+
+  private int castParameterType(MethodVisitor mv, Class<?> paramClass, int localVarIndex)
       throws NoSuchMethodException {
     if (paramClass.getName().equals("int")) {
-      mv.visitVarInsn(Opcodes.ILOAD, index + 1);
+      mv.visitVarInsn(Opcodes.ILOAD, localVarIndex);
       mv.visitMethodInsn(Opcodes.INVOKESTATIC,
                          "java/lang/Integer",
                          "valueOf",
                          Type.getMethodDescriptor(Integer.class.getMethod("valueOf", int.class)),
                          /* is interface = */false);
+      return localVarIndex + 1;
     } else if (paramClass.getName().equals("short")) {
-      mv.visitVarInsn(Opcodes.ILOAD, index + 1);
+      mv.visitVarInsn(Opcodes.ILOAD, localVarIndex);
       mv.visitMethodInsn(Opcodes.INVOKESTATIC,
                          "java/lang/Short",
                          "valueOf",
                          Type.getMethodDescriptor(Short.class.getMethod("valueOf", short.class)),
                          /* is interface = */false);
+      return localVarIndex + 1;
     } else if (paramClass.getName().equals("long")) {
-      mv.visitVarInsn(Opcodes.LLOAD, index + 1);
+      mv.visitVarInsn(Opcodes.LLOAD, localVarIndex);
       mv.visitMethodInsn(Opcodes.INVOKESTATIC,
                          "java/lang/Long",
                          "valueOf",
                          Type.getMethodDescriptor(Long.class.getMethod("valueOf", long.class)),
                          /* is interface = */false);
+      return localVarIndex + 2;
     } else if (paramClass.getName().equals("float")) {
-      mv.visitVarInsn(Opcodes.FLOAD, index + 1);
+      mv.visitVarInsn(Opcodes.FLOAD, localVarIndex);
       mv.visitMethodInsn(Opcodes.INVOKESTATIC,
                          "java/lang/Float",
                          "valueOf",
                          Type.getMethodDescriptor(Float.class.getMethod("valueOf", float.class)),
                          /* is interface = */false);
+      return localVarIndex + 1;
     } else if (paramClass.getName().equals("double")) {
-      mv.visitVarInsn(Opcodes.DLOAD, index + 1);
+      mv.visitVarInsn(Opcodes.DLOAD, localVarIndex);
       mv.visitMethodInsn(Opcodes.INVOKESTATIC,
                          "java/lang/Double",
                          "valueOf",
                          Type.getMethodDescriptor(
                             Double.class.getMethod("valueOf", double.class)),
                          /* is interface = */false);
+      return localVarIndex + 2;
     } else if (paramClass.getName().equals("byte")) {
-      mv.visitVarInsn(Opcodes.ILOAD, index + 1);
+      mv.visitVarInsn(Opcodes.ILOAD, localVarIndex);
       mv.visitMethodInsn(Opcodes.INVOKESTATIC,
                          "java/lang/Byte",
                          "valueOf",
                          Type.getMethodDescriptor(Byte.class.getMethod("valueOf",byte.class)),
                          /* is interface = */false);
+      return localVarIndex + 1;
     } else if (paramClass.getName().equals("char")) {
-      mv.visitVarInsn(Opcodes.ILOAD, index + 1);
+      mv.visitVarInsn(Opcodes.ILOAD, localVarIndex);
       mv.visitMethodInsn(Opcodes.INVOKESTATIC,
                          "java/lang/Character",
                          "valueOf",
                          Type.getMethodDescriptor(
                             Character.class.getMethod("valueOf",char.class)),
                          /* is interface = */false);
+      return localVarIndex + 1;
     } else if (paramClass.getName().equals("boolean")) {
-      mv.visitVarInsn(Opcodes.ILOAD, index + 1);
+      mv.visitVarInsn(Opcodes.ILOAD, localVarIndex);
       mv.visitMethodInsn(Opcodes.INVOKESTATIC,
                          "java/lang/Boolean",
                          "valueOf",
                          Type.getMethodDescriptor(
                             Boolean.class.getMethod("valueOf",boolean.class)),
                          /* is interface = */false);
+      return localVarIndex + 1;
     } else {
       mv.visitVarInsn(Opcodes.ALOAD, 1);
+      return localVarIndex + 1;
     }
   }
 
