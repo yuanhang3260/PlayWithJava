@@ -40,6 +40,7 @@ public class ProxyDemo {
         throws IllegalAccessException, IllegalArgumentException,
                InvocationTargetException {
       System.out.println("BEFORE");
+      System.out.println(method.toString());
       Object re = method.invoke(original, args);
       System.out.println("AFTER");
       return re;
@@ -55,14 +56,5 @@ public class ProxyDemo {
                                         new Class[] {If1.class, If2.class},
                                         wrapper);
     f.originalMethod("Hello");
-
-    try {
-      Class<?> clazz;
-      clazz = Class.forName("proxy.ProxyDemo$If1");
-      System.out.println(clazz.getName());
-    } catch (Exception e) {
-      e.printStackTrace();
-      return;
-    }
   }
 }
