@@ -3,16 +3,17 @@ package aop;
 import java.util.*;
 import java.lang.reflect.*;
 
-import aop.BeanAspects;
-import aop.DefaultBeanFactory;
-
 import static org.junit.Assert.*;
 import org.junit.Test;
+
+import aop.BeanAspects;
+import aop.DefaultBeanFactory;
+import aop.example.*;
 
 public class AOPTest {
 
   @Test
-  public void testBeanFactory() {
+  public void testBeanFactory() throws Exception {
     DefaultBeanFactory factory = new DefaultBeanFactory(new String[] {
       "aop.example"
     });
@@ -33,6 +34,18 @@ public class AOPTest {
         }
       }
     }
+    System.out.println();
+
+    Greeter greeter = (Greeter)factory.getBean("aop.example.Greeter");
+    greeter.sayHello("snoopy");
+    System.out.println();
+
+    Calculator calculator = (Calculator)factory.getBean("aop.example.Calculator");
+    System.out.println(calculator.add(1, 2));
+    System.out.println();
+
+    System.out.println(calculator.sub(300, 500));
+    System.out.println();
   }
 
 }

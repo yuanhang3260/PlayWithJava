@@ -20,21 +20,22 @@ public class DefaultBeanFactory {
     scanPackages(packages);
   }
 
-  public Object getBean(String beanId) {
+  public Object getBean(String beanId) throws Exception {
     Bean bean = beans.get(beanId);
     if (bean != null) {
       return bean.getInstance(this);
+    } else {
+      throw new RuntimeException("No such bean: " + beanId);
     }
-    return null;
   }
 
   private void scanPackages(String[] packages) {
     for (String pkg : packages) {
-      scanBeanInPackage(pkg);
+      scanBeansInPackage(pkg);
     }
   }
 
-  private void scanBeanInPackage(String pkg) {
+  private void scanBeansInPackage(String pkg) {
     ClassPath cp;
     try {
       cp = ClassPath.from(getClass().getClassLoader());
@@ -47,6 +48,7 @@ public class DefaultBeanFactory {
       Class<?> clazz = ci.load();
       String className = clazz.getName();
 
+      // Check this class is a bean.
       Annotation componentAnnotation = clazz.getAnnotation(Component.class);
       if (componentAnnotation == null) {
         continue;
